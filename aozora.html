@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>テキスト整形ツール</title>
+
+<style>
+body {
+  font-family: serif;
+  margin: 0;
+  padding: 10px;
+  background: #f5f5f5;
+}
+
+textarea {
+  width: 100%;
+  height: 150px;
+  font-size: 16px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+button {
+  margin: 5px 5px 5px 0;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+#reader {
+  white-space: pre-wrap;
+  line-height: 1.8;
+  font-size: 24px;
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+}
+</style>
+</head>
+
+<body>
+
+<h3>テキスト整形ツール</h3>
+
+<textarea id="input" placeholder="ここに文章を貼る"></textarea>
+
+<br>
+
+<button onclick="formatText()">整形</button>
+<button onclick="largerText()">文字大</button>
+<button onclick="smallerText()">文字小</button>
+<button onclick="toggleSentenceBreak()">一文改行ON/OFF</button>
+<button onclick="copyOutput()">コピー</button>
+
+<hr>
+
+<div id="reader"></div>
+
+<script>
+let fontSize = 24;
+let sentenceBreak = true;
+
+function cleanAnnotations(text) {
+  text = text.replace(/《.*?》/g, "");
+  text = text.replace(/［＃.*?］/g, "");
+  return text;
+}
+
+function modernizeText(text) {
+  const replacements = [
+    // 基本の旧仮名
+    ["ゐ", "い"],
+    ["ゑ", "え"],
+
+    // 言う系
+    ["云ふ", "言う"],
+    ["云つ", "言っ"],
+    ["云は", "言わ"],
+    ["云ひ", "言い"],
+    ["云へ", "言え"],
+    ["云ほ", "言お"],
+
+    // そう・こう・どう系
+    ["さう", "そう"],
+    ["かう", "こう"],
+    ["たう", "とう"],
+    ["はう", "ほう"],
+    ["やう", "よう"],
+    ["どう云ふ", "どういう"],
+
+    // 助動詞・語尾
+    ["でせう", "でしょう"],
+    ["であらう", "であろう"],
+    ["であらうか", "であろうか"],
+    ["ませう", "ましょう"],
+    ["ませんでしたら", "ませんでしたら"],
+    ["まい", "まい"],
+
+    // よく出る副詞・接続
+    ["まづ", "まず"],
+    ["なほ", "なお"],
+    ["又", "また"],
+    ["併し", "しかし"],
+    ["然し", "しかし"],
+    ["或", "ある"],
+    ["其の", "その"],
+    ["此の", "この"],
+    ["彼の", "あの"],
+
+    // 居る系
+    ["居る", "いる"],
+    ["居た", "いた"],
+    ["居て", "いて"],
+    ["居ない", "いない"],
+    ["居なかっ", "いなかっ"],
+    ["居ら", "いら"],
+    ["居り", "おり"],
+    ["居れ", "いれ"],
+
+    // する・出来る
+    ["為に", "ために"],
+    ["為る", "する"],
+    ["致す", "いたす"],
+    ["出来る", "できる"],
+    ["出来た", "できた"],
+    ["出来ない", "できない"],
+    ["出来なかっ", "できなかっ"],
+
+    // 前置詞・漢語まじり
+    ["於て", "おいて"],
+    ["及び", "および"],
+    ["即ち", "すなわち"],
+    ["更に", "さらに"],
+    ["殆", "ほとんど"],
+    ["随分", "ずいぶん"],
+    ["勿論", "もちろん"],
+    ["尤も", "もっとも"],
+
+    // つ→っ 系（比較的よく出るもの）
+    ["なつ", "なっ"],
+    ["なつて", "なって"],
+    ["なつた", "なった"],
+    ["なつてゐ", "なってい"],
+    ["あつ", "あっ"],
+    ["あつた", "あった"],
+    ["あつて", "あって"],
+    ["あつても", "あっても"],
+    ["行つ", "行っ"],
+    ["思つ", "思っ"],
+    ["言つ", "言っ"],
+    ["知つ", "知っ"],
+    ["持つ", "持っ"],
+    ["座つ", "座っ"],
+    ["入つ", "入っ"],
+    ["立つ", "立っ"],
+    ["帰つ", "帰っ"],
+    ["笑つ", "笑っ"],
+    ["使つ", "使っ"],
+    ["知らなかつ", "知らなかっ"],
+    ["見つかつ", "見つかっ"],
+    ["違つ", "違っ"],
+    ["云つて", "言って"],
+    ["思つて", "思って"],
+    ["行つて", "行って"],
+    ["入つて", "入って"],
+    ["帰つて", "帰って"],
+
+    // づ・ぢ系
+    ["づつ", "ずつ"],
+    ["ぢ", "じ"],
+    ["づ", "ず"],
+
+    // よくある語彙
+    ["仮名", "かな"],
+    ["筈", "はず"],
+    ["随つて", "したがって"],
+    ["斯う", "こう"],
+    ["斯んな", "こんな"],
+    ["可成", "かなり"],
+    ["直ぐ", "すぐ"],
+    ["一寸", "ちょっと"],
+    ["稍", "やや"],
+    ["態々", "わざわざ"],
+    ["折角", "せっかく"],
+    ["兎に角", "とにかく"],
+    ["何故", "なぜ"],
+    ["何時", "いつ"],
+    ["何処", "どこ"],
+    ["誰彼", "だれかれ"],
+    ["譬へ", "たとえ"],
+
+    // かなり頻出の表記ゆれ
+    ["いふ", "いう"],
+    ["いつた", "いった"],
+    ["いつて", "いって"],
+    ["おもふ", "思う"],
+    ["おもつ", "思っ"],
+    ["ゆく", "行く"],
+    ["よい", "良い"],
+
+    // よくある送り
+    ["ありませう", "ありましょう"],
+    ["でございませう", "でございましょう"],
+    ["ございませ", "ございませ"],
+    ["下さい", "ください"],
+    ["下さる", "くださる"],
+    ["下すつ", "くだすっ"],
+    ["仰有", "おっしゃ"],
+    ["下さら", "くださら"],
+
+    // 会話や古風表現で出やすいもの
+    ["ぢつと", "じっと"],
+    ["ぢつ", "じっ"],
+    ["ぢや", "じゃ"],
+    ["ぢゃ", "じゃ"],
+    ["づいぶん", "ずいぶん"],
+
+    // 追加の安全寄り置換
+    ["かへ", "かえ"],
+    ["まへ", "まえ"],
+    ["うへ", "うえ"],
+    ["こゑ", "こえ"],
+    ["ゑん", "えん"],
+    ["ゑき", "えき"],
+    ["ゑんだん", "えんだん"]
+  ];
+
+  for (const [oldStr, newStr] of replacements) {
+    text = text.split(oldStr).join(newStr);
+  }
+  return text;
+}
+
+function addParagraphSpacing(text) {
+  const lines = text.split("\n");
+  const result = [];
+
+  for (let line of lines) {
+    line = line.replace(/\r/g, "").replace(/\s+$/g, "");
+
+    if (!line.trim()) continue;
+
+    if (line.startsWith("　") && result.length > 0) {
+      result.push("");
+    }
+
+    result.push(line.replace(/^　+/, ""));
+  }
+
+  return result.join("\n");
+}
+
+function splitSentences(text) {
+  return text.replace(/。/g, "。\n");
+}
+
+function removeLeftPadding(text) {
+  return text
+    .split("\n")
+    .map(line => line.trim())
+    .join("\n");
+}
+
+function formatPipeline(text) {
+  text = cleanAnnotations(text);
+  text = modernizeText(text);
+  text = addParagraphSpacing(text);
+  if (sentenceBreak) {
+    text = splitSentences(text);
+  }
+  text = removeLeftPadding(text);
+  return text;
+}
+
+function formatText() {
+  const input = document.getElementById("input").value;
+  const output = formatPipeline(input);
+  document.getElementById("reader").textContent = output;
+}
+
+function largerText() {
+  fontSize += 2;
+  document.getElementById("reader").style.fontSize = fontSize + "px";
+}
+
+function smallerText() {
+  fontSize = Math.max(14, fontSize - 2);
+  document.getElementById("reader").style.fontSize = fontSize + "px";
+}
+
+function toggleSentenceBreak() {
+  sentenceBreak = !sentenceBreak;
+  formatText();
+}
+
+async function copyOutput() {
+  const text = document.getElementById("reader").textContent;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("コピーしました");
+  } catch (e) {
+    alert("コピーできませんでした");
+  }
+}
+</script>
+
+</body>
+</html>
